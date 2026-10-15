@@ -1,0 +1,41 @@
+# Render Blueprint — MediCare Dashboard
+# https://render.com/docs/blueprint-spec
+#
+# Usage:
+#   1. Push this file to the root of your GitHub repo.
+#   2. On Render dashboard: New + → Blueprint → select your repo.
+#   3. Render auto-creates the web service from this spec.
+#   4. Fill in the `sync: false` env vars in the Render dashboard.
+
+services:
+  - type: web
+    name: medicare-dashboard
+    runtime: node
+    plan: free
+    branch: main
+    # Build: install deps → generate Prisma client → build Next.js standalone
+    # DATABASE_URL is set to a dummy file path because the Prisma CLI needs
+    # it during `prisma generate` (for schema validation). The actual DB
+    # connection at runtime uses TURSO_DATABASE_URL via the adapter.
+    buildCommand: npm install && DATABASE_URL=file:./db/dummy.db npx prisma generate && npm run build
+    # Start: must use `node` (Render Node runtime has no `bun`). HOSTNAME=0.0.0.0
+    # is required so the standalone server binds to all interfaces (Render's
+    # reverse proxy needs this). PORT is injected by Render automatically.
+    startCommand: HOSTNAME=0.0.0.0 node .next/standalone/server.js
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # DATABASE_URL is a dummy — the app uses the Turso adapter at runtime.
+      # It's only needed for Prisma CLI during build (set in buildCommand).
+      - key: DATABASE_URL
+        value: file:./db/dummy.db
+      - key: TURSO_DATABASE_URL
+        sync: false  # set in Render dashboard — `turso db show medicare --url`
+      - key: TURSO_AUTH_TOKEN
+        sync: false  # set in Render dashboard — `turso db tokens create medicare`
+      - key: JWT_SECRET
+        sync: false  # set in Render dashboard — `openssl rand -hex 32`
+      - key: ADMIN_BACKUP_PASSCODE
+        sync: false  # set in Render dashboard
+    healthCheckPath: /health
